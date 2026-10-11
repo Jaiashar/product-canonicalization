@@ -15,10 +15,20 @@ class DuplicateReviewer:
         self.final_table = self.aws_client.get_table(settings.FINAL_TABLE_NAME)
         logger.info("DuplicateReviewer initialized")
 
+    def _scan_all(self, **kwargs):
+        """Yield every matching item, including matches after empty filtered pages."""
+        while True:
+            response = self.final_table.scan(**kwargs)
+            yield from response.get('Items', [])
+            last_key = response.get('LastEvaluatedKey')
+            if not last_key:
+                break
+            kwargs['ExclusiveStartKey'] = last_key
+
     def get_pending_duplicates(self) -> List[Dict]:
         """Get all products that need duplicate review"""
         try:
-            response = self.final_table.scan(
+            items = self._scan_all(
                 FilterExpression='attribute_exists(potential_duplicates) AND size(potential_duplicates) > :zero AND duplicate_checked = :false',
                 ExpressionAttributeValues={
                     ':zero': 0,
@@ -26,7 +36,7 @@ class DuplicateReviewer:
                 }
             )
             
-            return response.get('Items', [])
+            return list(items)
             
         except Exception as e:
             logger.error(f"Error getting pending duplicates: {e}")
@@ -157,12 +167,12 @@ class DuplicateReviewer:
         """Remove a product ID from all other products' potential_duplicates lists"""
         try:
             # Scan for products that have this product_id in their potential_duplicates
-            response = self.final_table.scan(
+            items = self._scan_all(
                 FilterExpression='contains(potential_duplicates, :product_id)',
                 ExpressionAttributeValues={':product_id': product_id}
             )
             
-            for item in response['Items']:
+            for item in items:
                 potential_duplicates = item.get('potential_duplicates', [])
                 if product_id in potential_duplicates:
                     potential_duplicates.remove(product_id)

@@ -57,7 +57,7 @@ flowchart TD
 
 A merge retains one product ID, unions source sites, and can take the larger image set and associated embedding from the other record. It then updates duplicate references and deletes the removed record. This is a concrete tradeoff: canonical identity becomes simpler, but merging is a destructive decision and must be correct.
 
-The implementation performs several database operations rather than a single atomic transaction. A failure midway can leave partial progress. The pending-review scan also returns the first response's items without a pagination loop in that method, so a large table requires further work before assuming every candidate is reviewed. These behaviors are visible in [duplicate_reviewer.py](src/duplicate_reviewer.py).
+The implementation performs several database operations rather than a single atomic transaction. A failure midway can leave partial progress. Pending-review and duplicate-reference cleanup scans follow every DynamoDB page, including empty filtered pages that still contain a continuation key. These behaviors are visible in [duplicate_reviewer.py](src/duplicate_reviewer.py).
 
 ## Where to inspect matching quality
 
@@ -85,12 +85,23 @@ python scripts/run_canonicalization.py
 
 Install OpenAI's CLIP package separately if you want to explore local image embeddings. Model weights are downloaded when that mode initializes.
 
+## Offline regression checks
+
+These tests use an in-memory DynamoDB table and mocked image/model boundaries. They do not create AWS sessions, load model weights, download images, or call providers.
+
+```sh
+python -m pip install -r requirements-test.txt
+python -m unittest discover -s tests -v
+```
+
+The checks cover pagination after empty filtered pages, cleanup of duplicate references on later pages, unavailable embedding providers, local inference errors, and explicitly selected deterministic test vectors.
+
 ## Status and limitations
 
 - All 21 Python files passed syntax validation when this snapshot was prepared.
 - Gitleaks found no secrets in the source snapshot or its published history.
 - Cloud integrations, provider responses, model quality, and database writes have not been retested for this publication. Dependencies retain their historical version ranges.
-- The OpenAI embedding path is a placeholder. Several embedding error paths fall back to deterministic dummy vectors; those vectors must not be used to judge real product similarity.
+- The OpenAI image-embedding path remains unimplemented and returns no embedding. Missing CLIP dependencies or local inference failures also return no embedding. Synthetic vectors are generated only when `EMBEDDING_METHOD=dummy` is explicitly selected for testing; they must never be used to evaluate product similarity.
 - The legacy synchronous SerpAPI fallback references a removed module. Install the listed `aiohttp` dependency for the included async client and compatibility wrapper.
 - Name preservation and classification use heuristics and require evaluation on your own data. No accuracy or throughput benchmark is claimed.
 
@@ -100,4 +111,4 @@ Install OpenAI's CLIP package separately if you want to explore local image embe
 
 ## Provenance
 
-Written by Jai Ashar for Auricore. This snapshot is derived from `Auricore/luxury-product-canonicalization` at commit `21e1391e2974f1fbb2b4027d785c9f4051786810`. The original repository's two commits are attributed to Jai Ashar. Publication adds documentation, an empty environment template, and ignore rules; the historical application code is unchanged.
+Written by Jai Ashar for Auricore. This snapshot is derived from `Auricore/luxury-product-canonicalization` at commit `21e1391e2974f1fbb2b4027d785c9f4051786810`. The original repository's two commits are attributed to Jai Ashar. Publication adds documentation, an empty environment template, and ignore rules. Follow-up maintenance adds DynamoDB scan pagination and prevents unavailable real embedding providers from silently producing synthetic vectors. Seven isolated regression tests cover those behaviors; the broader historical pipeline has not been revalidated against live services.

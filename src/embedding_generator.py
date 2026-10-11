@@ -22,8 +22,7 @@ class EmbeddingGenerator:
         elif self.method == 'dummy':
             logger.info("Using dummy embeddings for testing")
         else:
-            logger.warning(f"Unknown embedding method: {self.method}, falling back to dummy")
-            self.method = 'dummy'
+            raise ValueError(f"Unknown embedding method: {self.method}")
     
     def _load_local_clip(self):
         """Load local CLIP model"""
@@ -36,32 +35,17 @@ class EmbeddingGenerator:
             logger.info(f"Loaded local CLIP model on {self.device}")
         except ImportError as e:
             logger.error(f"PyTorch or CLIP not installed: {e}")
-            logger.info("Falling back to dummy embeddings. Install with: pip install torch torchvision clip-by-openai")
-            self.method = 'dummy'
+            logger.error("Local embeddings unavailable; install PyTorch and OpenAI CLIP")
             self.model = None
         except Exception as e:
             logger.error(f"Error loading local CLIP model: {e}")
-            logger.info("Falling back to dummy embeddings")
-            self.method = 'dummy'
+            logger.error("Local embeddings unavailable")
             self.model = None
     
     def _load_openai_client(self):
-        """Load OpenAI client"""
-        try:
-            import openai
-            if not settings.OPENAI_API_KEY:
-                raise ValueError("OPENAI_API_KEY not set in environment")
-            self.openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-            logger.info("Initialized OpenAI client for embeddings")
-        except ImportError:
-            logger.error("OpenAI library not installed. Install with: pip install openai")
-            logger.info("Falling back to dummy embeddings")
-            self.method = 'dummy'
-        except Exception as e:
-            logger.error(f"Error initializing OpenAI client: {e}")
-            logger.info("Falling back to dummy embeddings")
-            self.method = 'dummy'
-    
+        """The historical OpenAI image-embedding path is not implemented."""
+        logger.error("OpenAI image embeddings are not implemented; no embedding will be generated")
+
     def generate_embedding(self, image_url: str) -> Optional[List[float]]:
         """Generate embedding for an image"""
         if self.method == 'local':
@@ -79,7 +63,7 @@ class EmbeddingGenerator:
         try:
             if not self.model:
                 logger.error("Local CLIP model not loaded")
-                return self._generate_dummy_embedding(image_url)
+                return None
             
             import torch
             
@@ -104,34 +88,13 @@ class EmbeddingGenerator:
             
         except Exception as e:
             logger.error(f"Error generating local embedding for {image_url}: {e}")
-            return self._generate_dummy_embedding(image_url)
+            return None
     
     def _generate_openai_embedding(self, image_url: str) -> Optional[List[float]]:
-        """Generate embedding using OpenAI API"""
-        try:
-            if not hasattr(self, 'openai_client'):
-                logger.error("OpenAI client not initialized")
-                return self._generate_dummy_embedding(image_url)
-            
-            # Download image
-            image = self.image_processor.download_image(image_url)
-            if not image:
-                return None
-            
-            # Convert to base64
-            image_b64 = self.image_processor.image_to_base64(image)
-            if not image_b64:
-                return None
-            
-            # Note: This is a placeholder - OpenAI doesn't have a direct CLIP embedding API
-            # You might need to use a different service or implement this differently
-            logger.warning("OpenAI CLIP embedding API not implemented - using dummy embedding")
-            return self._generate_dummy_embedding(image_url)
-            
-        except Exception as e:
-            logger.error(f"Error generating OpenAI embedding for {image_url}: {e}")
-            return self._generate_dummy_embedding(image_url)
-    
+        """Fail closed rather than returning synthetic vectors for a real provider."""
+        logger.error("OpenAI image embeddings are not implemented")
+        return None
+
     def _generate_dummy_embedding(self, image_url: str) -> Optional[List[float]]:
         """Generate a dummy embedding for testing purposes"""
         try:
@@ -144,10 +107,10 @@ class EmbeddingGenerator:
             
             # Use hash to seed random number generator for consistency
             import random
-            random.seed(url_hash)
+            rng = random.Random(url_hash)
             
             # Generate a normalized 512-dimensional embedding
-            embedding = [random.gauss(0, 1) for _ in range(512)]
+            embedding = [rng.gauss(0, 1) for _ in range(512)]
             
             # Normalize to unit vector
             norm = sum(x*x for x in embedding) ** 0.5
