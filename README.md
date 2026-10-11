@@ -8,6 +8,10 @@ This is a historical source snapshot, published as a portfolio project. It requi
 
 The same product appears across retailers with different names, categories, pricing text, and model identifiers. Normalizing those listings means deciding which source to trust while retaining the details that distinguish one product from another.
 
+For example, one listing might call a bag “Example Atelier Everyday Bag” while another adds condition, color and resale language to the title. A useful catalog should preserve the product identity without treating every title variation as a new product. This is an illustrative problem statement, not a measured result from the original dataset.
+
+The pipeline combines deterministic rules, optional model calls and human review. Keeping a review step matters because similar names or images alone do not establish that two listings refer to the same product.
+
 ## Implementation
 
 - **Source selection:** score original and enriched names using retailer-specific heuristics and content-quality checks.
@@ -26,7 +30,7 @@ flowchart LR
     E --> F[Manual duplicate review]
 ```
 
-## Explore the code
+## Code guide
 
 | File | Responsibility |
 | --- | --- |
@@ -67,6 +71,10 @@ Install OpenAI's CLIP package separately if you want to explore local image embe
 - The OpenAI embedding path is a placeholder. Several embedding error paths fall back to deterministic dummy vectors; those vectors must not be used to judge real product similarity.
 - The legacy synchronous SerpAPI fallback references a removed module. Install the listed `aiohttp` dependency for the included async client and compatibility wrapper.
 - Name preservation and classification use heuristics and require evaluation on your own data. No accuracy or throughput benchmark is claimed.
+
+## Where this fits in Auricore
+
+[Product ingestion](https://github.com/Jaiashar/luxury-product-ingestion) collects listings and structures their fields. This project handles the next problem: reconciling and enriching those records into a more consistent catalog. [Auricore Web](https://github.com/Jaiashar/auricore-web) contains the user-facing item-identification and price-research experience.
 
 ## Provenance
 
