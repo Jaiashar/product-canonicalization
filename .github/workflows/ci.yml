@@ -1,0 +1,24 @@
+name: Offline regression tests
+on:
+  push:
+    branches: [portfolio]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Install lightweight test dependencies
+        run: |
+          python3 -m venv .venv-ci
+          .venv-ci/bin/pip install -r requirements-test.txt
+      - name: Exercise pagination and embedding failures without providers
+        run: .venv-ci/bin/python -m unittest discover -s tests -v
