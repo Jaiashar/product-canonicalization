@@ -41,6 +41,28 @@ flowchart LR
 | [`src/duplicate_reviewer.py`](src/duplicate_reviewer.py) | Human review and merge decisions |
 | [`src/embedding_generator.py`](src/embedding_generator.py) | Optional embedding and similarity utilities |
 
+## Human review and record identity
+
+Duplicate review works on stored candidate relationships. `get_pending_duplicates()` selects records with a nonempty `potential_duplicates` list and `duplicate_checked` set to false. The reviewer displays the pair's original and normalized names, brand/model, category, source sites, and image information so a person can compare the evidence.
+
+```mermaid
+flowchart TD
+    Candidate[Flagged product pair] --> Review[Human comparison]
+    Review -->|Same product| Merge[Choose record to retain]
+    Merge --> Sources[Union source sites and select image set]
+    Sources --> Save[Write retained record]
+    Save --> Cleanup[Remove references and delete duplicate]
+    Review -->|Different products| Separate[Remove candidate relationship]
+```
+
+A merge retains one product ID, unions source sites, and can take the larger image set and associated embedding from the other record. It then updates duplicate references and deletes the removed record. This is a concrete tradeoff: canonical identity becomes simpler, but merging is a destructive decision and must be correct.
+
+The implementation performs several database operations rather than a single atomic transaction. A failure midway can leave partial progress. The pending-review scan also returns the first response's items without a pagination loop in that method, so a large table requires further work before assuming every candidate is reviewed. These behaviors are visible in [duplicate_reviewer.py](src/duplicate_reviewer.py).
+
+## Where to inspect matching quality
+
+Read source scoring and name normalization before evaluating embeddings. The pipeline can produce a well-formed record without proving that the selected name or duplicate relationship is correct. Useful evaluation dimensions include retained product identity, source provenance, category consistency, and false merges. This repository does not publish a labeled benchmark or measured accuracy for those dimensions.
+
 ## Local setup
 
 Use Python 3.10 or newer, a virtual environment, and your own AWS development account.
